@@ -51,6 +51,36 @@
     border-radius: 6px;
     text-decoration: none;
   }
+  #text-result {
+    margin-top: 1.5rem;
+  }
+  #text-result h2 {
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+  }
+  .text-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  #font-size-value {
+    min-width: 2.5em;
+  }
+  #text-content {
+    width: 100%;
+    min-height: 12rem;
+    height: 20rem;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: ui-monospace, monospace;
+    font-size: 1rem;
+    line-height: 1.4;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
 </style>
 </head>
 <body>
@@ -67,6 +97,16 @@
   <div id="result" hidden>
     <a id="download" download="ocr-result.pdf">Ergebnis-PDF herunterladen</a>
     <iframe id="preview" title="Ergebnis-PDF"></iframe>
+
+    <div id="text-result">
+      <h2>Im PDF enthaltener Text</h2>
+      <div class="text-controls">
+        <label for="font-size">Schriftgroesse</label>
+        <input type="range" id="font-size" min="10" max="32" value="16">
+        <span id="font-size-value">16px</span>
+      </div>
+      <textarea id="text-content" readonly placeholder="Text wird extrahiert …"></textarea>
+    </div>
   </div>
 
   <script>
@@ -76,6 +116,31 @@
     const resultEl = document.getElementById("result");
     const downloadEl = document.getElementById("download");
     const previewEl = document.getElementById("preview");
+    const textContentEl = document.getElementById("text-content");
+    const fontSizeEl = document.getElementById("font-size");
+    const fontSizeValueEl = document.getElementById("font-size-value");
+
+    fontSizeEl.addEventListener("input", () => {
+      textContentEl.style.fontSize = `${fontSizeEl.value}px`;
+      fontSizeValueEl.textContent = `${fontSizeEl.value}px`;
+    });
+
+    async function loadExtractedText(blob) {
+      textContentEl.value = "";
+      textContentEl.placeholder = "Text wird extrahiert …";
+      const formData = new FormData();
+      formData.append("file", blob, "ergebnis.pdf");
+      try {
+        const response = await fetch("/extract-text", { method: "POST", body: formData });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const body = await response.json();
+        textContentEl.value = body.text || "(kein Text gefunden)";
+      } catch (err) {
+        textContentEl.placeholder = `Fehler beim Extrahieren: ${err.message}`;
+      }
+    }
 
     let lastObjectUrl = null;
 
@@ -111,6 +176,8 @@
         previewEl.src = lastObjectUrl;
         resultEl.hidden = false;
         statusEl.textContent = "Fertig.";
+
+        loadExtractedText(blob);
       } catch (err) {
         statusEl.classList.add("error");
         statusEl.textContent = `Fehler: ${err.message}`;

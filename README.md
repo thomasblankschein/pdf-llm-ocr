@@ -40,7 +40,12 @@ Geometrie.
 | `align.py` | Sequence-Alignment: LLM-Text auf Tesseract-Boxen abbilden |
 | `overlay.py` | Unsichtbaren Textlayer bauen (reportlab) und mergen (pypdf) |
 | `pipeline.py` | Orchestriert obige Schritte pro Dokument |
-| `api.py` | FastAPI-Endpoint `POST /ocr`, mountet `static/` als Test-Weboberflaeche |
+| `api.py` | FastAPI-Endpoints `POST /ocr` und `POST /extract-text`, mountet `static/` als Test-Weboberflaeche |
+
+`POST /extract-text` fuehrt keine OCR durch, sondern liest per `pypdf` nur den
+in einem hochgeladenen PDF bereits eingebetteten Text aus (`{"text": "..."}`).
+Dient der Weboberflaeche dazu, nach einem `/ocr`-Lauf direkt zu zeigen, was im
+Ergebnis-PDF tatsaechlich durchsuchbar/kopierbar ist.
 
 `prompts/` und `static/` liegen bewusst *innerhalb* von `src/pdf_llm_ocr/`
 (nicht auf Projekt-Root-Ebene) und sind in `pyproject.toml` als Package-Data
@@ -83,8 +88,10 @@ uvicorn pdf_llm_ocr.api:app --reload --app-dir src
 ```
 
 Test-Weboberflaeche: [http://localhost:8000](http://localhost:8000) – PDF hochladen,
-Ergebnis wird nach Verarbeitung inline angezeigt und ist herunterladbar
-(`static/index.html`, ruft nur `POST /ocr` auf).
+Ergebnis wird nach Verarbeitung inline angezeigt, ist herunterladbar, und der
+darin enthaltene Text wird zusaetzlich in einem groessenverstellbaren
+Textfeld angezeigt (`static/index.html`, ruft `POST /ocr` und danach
+`POST /extract-text` auf).
 
 Oder direkt per curl:
 

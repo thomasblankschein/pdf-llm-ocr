@@ -2,11 +2,13 @@
 unsichtbarem, lagegetreuem Textlayer zurueck. Unter / liegt eine einfache
 Test-Weboberflaeche (static/index.html)."""
 
+import io
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from pypdf import PdfReader
 
 from .config import load_settings
 from .pipeline import run_ocr_pipeline
@@ -36,6 +38,23 @@ async def ocr(file: UploadFile) -> Response:
 
     result_bytes = run_ocr_pipeline(pdf_bytes, settings)
     return Response(content=result_bytes, media_type="application/pdf")
+
+
+@app.post("/extract-text")
+async def extract_text(file: UploadFile) -> dict[str, str]:
+    """Liest den in einem PDF eingebetteten Text aus (fuer die Test-Weboberflaeche:
+    zeigt, was von einem OCR-Ergebnis-PDF tatsaechlich durchsuchbar/kopierbar ist).
+    Fuehrt selbst keine OCR durch, nur eine reine Textextraktion via pypdf."""
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Erwarte application/pdf")
+
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+    return {"text": text}
 
 
 # Muss nach den API-Routen gemountet werden, da Starlette Routen in
