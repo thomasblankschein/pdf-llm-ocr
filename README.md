@@ -38,7 +38,7 @@ Geometrie.
 | `tesseract_ocr.py` | Wort-Bounding-Boxes per Tesseract (`pytesseract.image_to_data`) |
 | `llm_ocr.py` | Vision-LLM-Aufruf (Anthropic) mit Tesseract-Text als Referenz |
 | `align.py` | Sequence-Alignment: LLM-Text auf Tesseract-Boxen abbilden |
-| `overlay.py` | Unsichtbaren Textlayer bauen (reportlab) und mergen (pypdf) |
+| `overlay.py` | Unsichtbaren Textlayer bauen (reportlab) und mergen (pypdf); Fallback ohne Wort-Positionen, wenn Tesseract 0 Woerter fand |
 | `pipeline.py` | Orchestriert obige Schritte pro Dokument |
 | `api.py` | FastAPI-Endpoints `POST /ocr` und `POST /extract-text`, mountet `static/` als Test-Weboberflaeche |
 
@@ -105,15 +105,24 @@ curl -X POST http://localhost:8000/ocr -F "file=@input.pdf" -o output.pdf
 PYTHONPATH=src pytest
 ```
 
-Aktuell nur Unit-Tests fuer die Alignment-Logik (`tests/test_align.py`) –
-keine externen Abhaengigkeiten (kein Tesseract-Binary, kein API-Key) noetig.
+Aktuell Unit-Tests fuer die Alignment-Logik (`tests/test_align.py`) und den
+Fallback-Textlayer (`tests/test_overlay.py`) – keine externen Abhaengigkeiten
+(kein Tesseract-Binary, kein API-Key) noetig.
 
 ## Bekannte Grenzen / naechste Schritte
 
 - **Alignment-Heuristik ist bewusst einfach** (siehe Docstring in `align.py`):
   Woerter, die das LLM zusaetzlich erkennt, aber die Tesseract nicht sah,
   haben keine Box und werden verworfen. Bei ungleich langen Ersetzungsbloecken
-  werden ueberzaehlige Tesseract-Woerter unveraendert uebernommen.
+  werden ueberzaehlige Tesseract-Woerter unveraendert uebernommen. Wenn
+  Tesseract auf einer Seite *gar keine* Woerter findet (z.B. stark verblasste
+  oder farbstichige Scans – in der Praxis beobachtet an einem Kassenbon-Scan),
+  greift stattdessen `overlay.build_fallback_overlay_page_pdf`: der LLM-Text
+  wird zeilenweise ohne Wort-Position abgelegt, damit er wenigstens
+  durchsuchbar bleibt, statt komplett zu verschwinden. Der Zwischenfall (0
+  Tesseract-Boxen, aber korrekte LLM-Transkription) bei ungleich langen
+  Ersetzungsbloecken innerhalb einer sonst erfolgreichen Seite ist davon
+  unberuehrt und bleibt die dokumentierte Grenze.
 - **Kein Zeilenumbruch-/Absatz-Handling**: Der Textlayer besteht aus
   einzelnen Woerter-Boxen, keine zusammenhaengenden Textbloecke.
 - **Kein Caching/Queueing**: Jede Anfrage laeuft synchron; fuer groessere

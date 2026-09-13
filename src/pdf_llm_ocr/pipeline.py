@@ -24,7 +24,14 @@ def run_ocr_pipeline(pdf_bytes: bytes, settings: Settings) -> bytes:
             max_reference_chars=settings.max_reference_chars,
         )
 
-        positioned_words = align.align_words_to_boxes(tesseract_words, corrected_text)
-        overlay_pages.append(overlay.build_overlay_page_pdf(page, positioned_words))
+        if tesseract_words:
+            positioned_words = align.align_words_to_boxes(tesseract_words, corrected_text)
+            overlay_pages.append(overlay.build_overlay_page_pdf(page, positioned_words))
+        else:
+            # Tesseract fand keine einzige Box (z.B. stark verblasste/farbstichige
+            # Scans) - ohne Positionen wuerde align_words_to_boxes die komplette
+            # LLM-Transkription verwerfen. Stattdessen den LLM-Text ohne
+            # Wort-Positionen ablegen, damit er wenigstens durchsuchbar bleibt.
+            overlay_pages.append(overlay.build_fallback_overlay_page_pdf(page, corrected_text))
 
     return overlay.merge_text_layer(pdf_bytes, overlay_pages)

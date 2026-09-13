@@ -52,6 +52,57 @@ def build_overlay_page_pdf(page: RenderedPage, words: list[Word]) -> bytes:
     return buffer.getvalue()
 
 
+_FALLBACK_FONT_SIZE = 9
+_FALLBACK_MARGIN_PT = 36  # 0.5 Zoll
+
+
+def _wrap_line(pdf_canvas: canvas.Canvas, text: str, font_size: float, max_width: float) -> list[str]:
+    if not text:
+        return [""]
+    words = text.split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or pdf_canvas.stringWidth(candidate, "Helvetica", font_size) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def build_fallback_overlay_page_pdf(page: RenderedPage, text: str) -> bytes:
+    """Wird verwendet, wenn Tesseract auf dieser Seite keine einzige Wort-Box
+    liefern konnte (z.B. stark verblasste oder farbstichige Scans - siehe
+    align.py). Ohne Tesseract-Boxen gibt es keine Positionen zum Ausrichten;
+    damit die (oft trotzdem korrekte) LLM-Transkription nicht komplett
+    verworfen wird, wird sie hier zeilenweise unsichtbar ueber die Seite gelegt
+    - Lesereihenfolge bleibt erhalten, aber nicht lagegetreu zu einzelnen
+    Woertern wie bei build_overlay_page_pdf."""
+    buffer = io.BytesIO()
+    pdf_canvas = canvas.Canvas(buffer, pagesize=(page.width_pt, page.height_pt))
+    pdf_canvas.setFont("Helvetica", _FALLBACK_FONT_SIZE)
+    _set_invisible_text_mode(pdf_canvas)
+
+    max_width = page.width_pt - 2 * _FALLBACK_MARGIN_PT
+    line_height = _FALLBACK_FONT_SIZE * 1.3
+    y = page.height_pt - _FALLBACK_MARGIN_PT
+
+    for paragraph in text.splitlines():
+        for line in _wrap_line(pdf_canvas, paragraph, _FALLBACK_FONT_SIZE, max_width):
+            if y < _FALLBACK_MARGIN_PT:
+                pdf_canvas.save()
+                return buffer.getvalue()
+            pdf_canvas.drawString(_FALLBACK_MARGIN_PT, y, line)
+            y -= line_height
+
+    pdf_canvas.save()
+    return buffer.getvalue()
+
+
 def merge_text_layer(original_pdf_bytes: bytes, overlay_pages: list[bytes]) -> bytes:
     reader = PdfReader(io.BytesIO(original_pdf_bytes))
     writer = PdfWriter()
