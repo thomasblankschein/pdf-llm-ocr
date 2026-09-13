@@ -113,14 +113,12 @@ keine externen Abhaengigkeiten (kein Tesseract-Binary, kein API-Key) noetig.
   PDFs oder hohen Durchsatz braucht es eine Job-Queue.
 - **Keine Auth**: Der Endpoint ist unauthentifiziert, fuer den produktiven
   Einsatz noetig nachzuruesten.
-- Noch nicht End-to-End getestet (Tesseract-Binary/Anthropic-Key nicht in
-  jeder Umgebung verfuegbar) – die Alignment-Logik ist isoliert getestet,
-  der volle Pfad (Rendern -> Tesseract -> LLM -> Merge) sollte vor
-  produktivem Einsatz einmal manuell durchlaufen werden.
-- **`docker compose up --build` wurde hier nicht ausgefuehrt** (kein Docker
-  in der Entwicklungsumgebung verfuegbar). Was gepasst hat: alle
-  Python-Abhaengigkeiten installieren sauber per `pip install` (gegen
-  `pyproject.toml` lokal verifiziert), es gibt keine Kompilierschritte, die
-  im Container zusaetzliche System-Pakete brauchen wuerden. Vor dem ersten
-  produktiven Einsatz trotzdem einmal real bauen und `GET /health` sowie
-  einen echten `/ocr`-Aufruf gegen den Container pruefen.
+- **Der volle Erfolgspfad (Rendern -> Tesseract -> LLM -> Merge) ist noch
+  nicht End-to-End mit einem echten `ANTHROPIC_API_KEY` durchlaufen worden.**
+  Verifiziert wurde bisher: `docker compose up -d --build` baut das Image
+  und startet den Container sauber (Ubuntu 26.04/WSL2, ohne Docker Desktop),
+  der Healthcheck wird `healthy`, die Weboberflaeche wird ausgeliefert, und
+  ein echter `/ocr`-Upload gegen den Container durchlaeuft Multipart-Handling,
+  Konfiguration und Fehlerpfad korrekt (erwartete 500-Antwort ohne API-Key).
+  Was fehlt: derselbe Aufruf mit einem echten Key, um Tesseract-Erkennung,
+  LLM-Aufruf und das fertige Text-Layer-PDF tatsaechlich zu sehen.
