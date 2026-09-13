@@ -42,22 +42,43 @@ Geometrie.
 | `pipeline.py` | Orchestriert obige Schritte pro Dokument |
 | `api.py` | FastAPI-Endpoint `POST /ocr`, mountet `static/` als Test-Weboberflaeche |
 
-`static/index.html` ist eine eigenstaendige HTML/JS-Seite (kein Build-Schritt,
-keine externen Abhaengigkeiten) zum manuellen Ausprobieren des Endpoints.
+`prompts/` und `static/` liegen bewusst *innerhalb* von `src/pdf_llm_ocr/`
+(nicht auf Projekt-Root-Ebene) und sind in `pyproject.toml` als Package-Data
+deklariert – nur so landen sie auch in einer regulaeren (nicht-editierbaren)
+Installation, wie sie das `Dockerfile` durchfuehrt. `static/index.html` ist
+eine eigenstaendige HTML/JS-Seite (kein Build-Schritt, keine externen
+Abhaengigkeiten) zum manuellen Ausprobieren des Endpoints.
 
-## Setup
+## Betrieb per Docker (empfohlen)
 
-Systemvoraussetzung: **Tesseract** muss installiert sein (inkl. gewuenschter
-Sprachpakete, Standard hier `deu+eng`).
+Einzige Voraussetzung: Docker mit Compose-Plugin. Tesseract wird beim
+Image-Build automatisch mitinstalliert (siehe `Dockerfile`) – es muss auf dem
+Zielsystem nichts manuell eingerichtet werden, egal welche Plattform Docker
+dort betreibt.
+
+```bash
+cp .env.example .env   # ANTHROPIC_API_KEY eintragen
+docker compose up -d --build
+```
+
+Danach: Test-Weboberflaeche unter [http://localhost:8000](http://localhost:8000),
+Endpoint unter `http://localhost:8000/ocr`. Ein Healthcheck (`GET /health`) ist
+in `docker-compose.yml` hinterlegt.
+
+Weitere Sprachen fuer Tesseract: im `Dockerfile` bei den `tesseract-ocr-<code>`-
+Paketen ergaenzen und `PDF_LLM_OCR_TESS_LANG` in `.env` entsprechend setzen
+(Paketnamen und Sprachcodes muessen zusammenpassen, z.B. `tesseract-ocr-fra`
+fuer `fra`).
+
+## Lokale Entwicklung ohne Docker
+
+Systemvoraussetzung: **Tesseract** muss lokal installiert sein (inkl.
+gewuenschter Sprachpakete, Standard hier `deu+eng`) – das ersetzt der
+Docker-Weg oben.
 
 ```bash
 pip install -e ".[dev]"
 cp .env.example .env   # ANTHROPIC_API_KEY eintragen
-```
-
-## Starten
-
-```bash
 uvicorn pdf_llm_ocr.api:app --reload --app-dir src
 ```
 
@@ -96,3 +117,10 @@ keine externen Abhaengigkeiten (kein Tesseract-Binary, kein API-Key) noetig.
   jeder Umgebung verfuegbar) – die Alignment-Logik ist isoliert getestet,
   der volle Pfad (Rendern -> Tesseract -> LLM -> Merge) sollte vor
   produktivem Einsatz einmal manuell durchlaufen werden.
+- **`docker compose up --build` wurde hier nicht ausgefuehrt** (kein Docker
+  in der Entwicklungsumgebung verfuegbar). Was gepasst hat: alle
+  Python-Abhaengigkeiten installieren sauber per `pip install` (gegen
+  `pyproject.toml` lokal verifiziert), es gibt keine Kompilierschritte, die
+  im Container zusaetzliche System-Pakete brauchen wuerden. Vor dem ersten
+  produktiven Einsatz trotzdem einmal real bauen und `GET /health` sowie
+  einen echten `/ocr`-Aufruf gegen den Container pruefen.

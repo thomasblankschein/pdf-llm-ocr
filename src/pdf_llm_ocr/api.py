@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import load_settings
 from .pipeline import run_ocr_pipeline
 
-_STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="pdf-llm-ocr")
 

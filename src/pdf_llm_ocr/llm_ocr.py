@@ -12,9 +12,7 @@ from pathlib import Path
 import anthropic
 from PIL import Image
 
-_PROMPT_TEMPLATE = (Path(__file__).parent.parent.parent / "prompts" / "ocr_prompt.txt").read_text(
-    encoding="utf-8"
-)
+_PROMPT_TEMPLATE = (Path(__file__).parent / "prompts" / "ocr_prompt.txt").read_text(encoding="utf-8")
 
 
 def _build_prompt(reference_text: str, max_reference_chars: int) -> str:
