@@ -1,11 +1,17 @@
 """FastAPI-Service: POST /ocr nimmt ein PDF entgegen, liefert es mit
-unsichtbarem, lagegetreuem Textlayer zurueck."""
+unsichtbarem, lagegetreuem Textlayer zurueck. Unter / liegt eine einfache
+Test-Weboberflaeche (static/index.html)."""
+
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
 from .pipeline import run_ocr_pipeline
+
+_STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
 
 app = FastAPI(title="pdf-llm-ocr")
 
@@ -30,3 +36,9 @@ async def ocr(file: UploadFile) -> Response:
 
     result_bytes = run_ocr_pipeline(pdf_bytes, settings)
     return Response(content=result_bytes, media_type="application/pdf")
+
+
+# Muss nach den API-Routen gemountet werden, da Starlette Routen in
+# Registrierungsreihenfolge prueft - sonst wuerde der Catch-all-Mount
+# frueher greifen als /health und /ocr.
+app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")

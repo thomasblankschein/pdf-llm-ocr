@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pdf-llm-ocr – Test</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    line-height: 1.5;
+  }
+  h1 { margin-bottom: 0.25rem; }
+  .subtitle { color: #666; margin-top: 0; }
+  form {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  button {
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #222;
+    color: #fff;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { min-height: 1.5rem; margin: 0.5rem 0; }
+  #status.error { color: #b00020; }
+  #result { margin-top: 1rem; }
+  #result iframe {
+    width: 100%;
+    height: 80vh;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-top: 0.75rem;
+  }
+  #download {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border: 1px solid #444;
+    border-radius: 6px;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+  <h1>pdf-llm-ocr</h1>
+  <p class="subtitle">PDF hochladen, Vision-LLM-OCR laufen lassen, Ergebnis mit unsichtbarem Textlayer pruefen.</p>
+
+  <form id="ocr-form">
+    <input type="file" id="file" accept="application/pdf" required>
+    <button type="submit" id="submit-btn">OCR starten</button>
+  </form>
+
+  <div id="status"></div>
+
+  <div id="result" hidden>
+    <a id="download" download="ocr-result.pdf">Ergebnis-PDF herunterladen</a>
+    <iframe id="preview" title="Ergebnis-PDF"></iframe>
+  </div>
+
+  <script>
+    const form = document.getElementById("ocr-form");
+    const submitBtn = document.getElementById("submit-btn");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const downloadEl = document.getElementById("download");
+    const previewEl = document.getElementById("preview");
+
+    let lastObjectUrl = null;
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = document.getElementById("file").files[0];
+      if (!file) return;
+
+      resultEl.hidden = true;
+      statusEl.classList.remove("error");
+      statusEl.textContent = "OCR läuft … (kann je nach Seitenzahl mehrere Sekunden pro Seite dauern)";
+      submitBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("/ocr", { method: "POST", body: formData });
+        if (!response.ok) {
+          let detail = `HTTP ${response.status}`;
+          try {
+            const body = await response.json();
+            if (body && body.detail) detail = body.detail;
+          } catch (_) { /* keine JSON-Fehlermeldung vorhanden */ }
+          throw new Error(detail);
+        }
+
+        const blob = await response.blob();
+        if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+        lastObjectUrl = URL.createObjectURL(blob);
+
+        downloadEl.href = lastObjectUrl;
+        previewEl.src = lastObjectUrl;
+        resultEl.hidden = false;
+        statusEl.textContent = "Fertig.";
+      } catch (err) {
+        statusEl.classList.add("error");
+        statusEl.textContent = `Fehler: ${err.message}`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

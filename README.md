@@ -40,7 +40,10 @@ Geometrie.
 | `align.py` | Sequence-Alignment: LLM-Text auf Tesseract-Boxen abbilden |
 | `overlay.py` | Unsichtbaren Textlayer bauen (reportlab) und mergen (pypdf) |
 | `pipeline.py` | Orchestriert obige Schritte pro Dokument |
-| `api.py` | FastAPI-Endpoint `POST /ocr` |
+| `api.py` | FastAPI-Endpoint `POST /ocr`, mountet `static/` als Test-Weboberflaeche |
+
+`static/index.html` ist eine eigenstaendige HTML/JS-Seite (kein Build-Schritt,
+keine externen Abhaengigkeiten) zum manuellen Ausprobieren des Endpoints.
 
 ## Setup
 
@@ -57,6 +60,12 @@ cp .env.example .env   # ANTHROPIC_API_KEY eintragen
 ```bash
 uvicorn pdf_llm_ocr.api:app --reload --app-dir src
 ```
+
+Test-Weboberflaeche: [http://localhost:8000](http://localhost:8000) – PDF hochladen,
+Ergebnis wird nach Verarbeitung inline angezeigt und ist herunterladbar
+(`static/index.html`, ruft nur `POST /ocr` auf).
+
+Oder direkt per curl:
 
 ```bash
 curl -X POST http://localhost:8000/ocr -F "file=@input.pdf" -o output.pdf
