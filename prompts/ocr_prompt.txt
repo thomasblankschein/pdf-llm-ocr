@@ -1,0 +1,5 @@
+Transcribe ALL text visible in this page image exactly, preserving reading order.
+Be thorough: continue until the bottom of the page, do not skip headers, footers, or
+page numbers. Output plain running text only, no markdown, no commentary, no code block.
+
+{reference_block}
