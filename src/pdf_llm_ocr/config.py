@@ -11,6 +11,7 @@ class Settings:
     render_dpi: int
     tesseract_lang: str
     max_reference_chars: int
+    min_alignment_coverage: float
 
 
 def load_settings() -> Settings:
@@ -20,4 +21,5 @@ def load_settings() -> Settings:
         render_dpi=int(os.environ.get("PDF_LLM_OCR_DPI", "300")),
         tesseract_lang=os.environ.get("PDF_LLM_OCR_TESS_LANG", "deu+eng"),
         max_reference_chars=int(os.environ.get("PDF_LLM_OCR_MAX_REF_CHARS", "8000")),
+        min_alignment_coverage=float(os.environ.get("PDF_LLM_OCR_MIN_ALIGNMENT_COVERAGE", "0.5")),
     )

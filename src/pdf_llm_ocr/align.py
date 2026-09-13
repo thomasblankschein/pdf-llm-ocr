@@ -9,27 +9,40 @@ Tesseract-Box.
 Bekannte Grenzen dieses Heuristik-Ansatzes (bewusst nicht geloest im
 Grundgeruest, siehe README "Naechste Schritte"):
 - Woerter, die das LLM zusaetzlich erkennt (insert-Bloecke) haben keine Box
-  und werden verworfen statt platziert.
+  und werden verworfen statt platziert. Das ist der Normalfall, wenn
+  Tesseract nur wenige/keine Boxen liefert (z.B. schlechte Scans) - dafuer
+  gibt es `coverage` (siehe unten), damit der Aufrufer diesen Fall erkennen
+  und auf den positionslosen Fallback-Layer (overlay.py) ausweichen kann,
+  statt fast den gesamten Text stillschweigend zu verlieren.
 - Bei ungleich langen replace-Bloecken (z.B. LLM trennt/verbindet Woerter
   anders als Tesseract) werden ueberzaehlige Tesseract-Woerter unveraendert
   uebernommen statt neu aufgeteilt.
 """
 
 import difflib
+from dataclasses import dataclass
 
 from .tesseract_ocr import Word
 
 
-def align_words_to_boxes(tesseract_words: list[Word], llm_text: str) -> list[Word]:
+@dataclass
+class AlignmentResult:
+    words: list[Word]
+    coverage: float  # Anteil der LLM-Woerter, die eine Tesseract-Position bekommen haben (0..1)
+
+
+def align_words_to_boxes(tesseract_words: list[Word], llm_text: str) -> AlignmentResult:
     llm_tokens = llm_text.split()
     tesseract_tokens = [word.text for word in tesseract_words]
 
     matcher = difflib.SequenceMatcher(a=tesseract_tokens, b=llm_tokens, autojunk=False)
     aligned: list[Word] = []
+    matched_llm_tokens = 0
 
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             aligned.extend(tesseract_words[i1:i2])
+            matched_llm_tokens += i2 - i1
             continue
 
         if tag == "delete":
@@ -56,7 +69,9 @@ def align_words_to_boxes(tesseract_words: list[Word], llm_text: str) -> list[Wor
                             height=tesseract_word.height,
                         )
                     )
+                    matched_llm_tokens += 1
                 else:
                     aligned.append(tesseract_word)
 
-    return aligned
+    coverage = matched_llm_tokens / len(llm_tokens) if llm_tokens else 1.0
+    return AlignmentResult(words=aligned, coverage=coverage)

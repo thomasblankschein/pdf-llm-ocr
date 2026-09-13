@@ -114,15 +114,18 @@ Fallback-Textlayer (`tests/test_overlay.py`) – keine externen Abhaengigkeiten
 - **Alignment-Heuristik ist bewusst einfach** (siehe Docstring in `align.py`):
   Woerter, die das LLM zusaetzlich erkennt, aber die Tesseract nicht sah,
   haben keine Box und werden verworfen. Bei ungleich langen Ersetzungsbloecken
-  werden ueberzaehlige Tesseract-Woerter unveraendert uebernommen. Wenn
-  Tesseract auf einer Seite *gar keine* Woerter findet (z.B. stark verblasste
-  oder farbstichige Scans – in der Praxis beobachtet an einem Kassenbon-Scan),
-  greift stattdessen `overlay.build_fallback_overlay_page_pdf`: der LLM-Text
-  wird zeilenweise ohne Wort-Position abgelegt, damit er wenigstens
-  durchsuchbar bleibt, statt komplett zu verschwinden. Der Zwischenfall (0
-  Tesseract-Boxen, aber korrekte LLM-Transkription) bei ungleich langen
-  Ersetzungsbloecken innerhalb einer sonst erfolgreichen Seite ist davon
-  unberuehrt und bleibt die dokumentierte Grenze.
+  werden ueberzaehlige Tesseract-Woerter unveraendert uebernommen. Findet
+  Tesseract auf einer Seite zu wenige Boxen (bis hin zu gar keinen – z.B.
+  stark verblasste oder farbstichige Scans, in der Praxis beobachtet an einem
+  Kassenbon-Scan), wuerde das den Grossteil des LLM-Texts als "insert"
+  verwerfen. `align_words_to_boxes` gibt dafuer `coverage` zurueck (Anteil der
+  LLM-Woerter, die tatsaechlich eine Position bekommen haben); faellt dieser
+  Wert unter `PDF_LLM_OCR_MIN_ALIGNMENT_COVERAGE` (Default `0.5`), verwendet
+  `pipeline.py` statt der Wort-Positionen `overlay.build_fallback_overlay_page_pdf`:
+  der LLM-Text wird zeilenweise ohne Wort-Position abgelegt, damit er
+  wenigstens vollstaendig durchsuchbar bleibt, statt zu grossen Teilen still
+  zu verschwinden. Der Schwellwert ist eine Heuristik, keine empirisch
+  hergeleitete Zahl - bei Bedarf per Env-Var justierbar.
 - **Kein Zeilenumbruch-/Absatz-Handling**: Der Textlayer besteht aus
   einzelnen Woerter-Boxen, keine zusammenhaengenden Textbloecke.
 - **Kein Caching/Queueing**: Jede Anfrage laeuft synchron; fuer groessere
