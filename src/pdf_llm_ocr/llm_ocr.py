@@ -1,39 +1,10 @@
-"""Ruft ein Vision-LLM fuer hochwertige Text-Transkription einer Seite auf.
-
-Analog zu paperless-gpt's ocr_prompt.tmpl: die vorhandene (Tesseract-)
-Rohtranskription wird als Referenz mitgegeben, damit das LLM schwierige
-Woerter/Zahlen einordnen kann, sich aber primaer auf das Bild verlaesst.
-"""
-
-import base64
-import io
-from pathlib import Path
+"""Ruft Claude (Anthropic) fuer hochwertige Text-Transkription einer Seite auf."""
 
 import anthropic
 from PIL import Image
 
-_PROMPT_TEMPLATE = (Path(__file__).parent / "prompts" / "ocr_prompt.txt").read_text(encoding="utf-8")
-
-
-def _build_prompt(reference_text: str, max_reference_chars: int) -> str:
-    reference_text = reference_text.strip()
-    if len(reference_text) > max_reference_chars:
-        reference_text = reference_text[:max_reference_chars]
-    reference_block = ""
-    if reference_text:
-        reference_block = (
-            "Fuer diese Seite liegt bereits eine grobe OCR-Rohtranskription vor. "
-            "Nutze sie nur, um schwer lesbare Woerter oder Zahlen einzuordnen; "
-            "verlasse dich primaer auf das Bild und korrigiere Fehler:\n\n"
-            f"{reference_text}"
-        )
-    return _PROMPT_TEMPLATE.format(reference_block=reference_block)
-
-
-def _image_to_base64_png(image: Image.Image) -> str:
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return base64.standard_b64encode(buffer.getvalue()).decode("ascii")
+from .image_utils import image_to_base64_png
+from .prompt import build_prompt
 
 
 def transcribe_page(
@@ -43,7 +14,7 @@ def transcribe_page(
     reference_text: str,
     max_reference_chars: int,
 ) -> str:
-    prompt = _build_prompt(reference_text, max_reference_chars)
+    prompt = build_prompt(reference_text, max_reference_chars)
     response = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -56,7 +27,7 @@ def transcribe_page(
                         "source": {
                             "type": "base64",
                             "media_type": "image/png",
-                            "data": _image_to_base64_png(image),
+                            "data": image_to_base64_png(image),
                         },
                     },
                     {"type": "text", "text": prompt},

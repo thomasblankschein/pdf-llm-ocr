@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pypdf import PdfReader
 
+from . import llm_provider
 from .config import load_settings
 from .pipeline import run_ocr_pipeline
 
@@ -33,8 +34,17 @@ async def ocr(file: UploadFile) -> Response:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
     settings = load_settings()
-    if not settings.anthropic_api_key:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY ist nicht gesetzt")
+    if settings.llm_provider not in llm_provider.SUPPORTED_PROVIDERS:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unbekannter PDF_LLM_OCR_PROVIDER '{settings.llm_provider}'"
+            f" - erwartet einen von {llm_provider.SUPPORTED_PROVIDERS}",
+        )
+    if not llm_provider.api_key_for(settings):
+        raise HTTPException(
+            status_code=500,
+            detail=f"API-Key fuer Provider '{settings.llm_provider}' ist nicht gesetzt",
+        )
 
     result_bytes = run_ocr_pipeline(pdf_bytes, settings)
     return Response(content=result_bytes, media_type="application/pdf")

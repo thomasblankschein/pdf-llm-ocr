@@ -15,7 +15,7 @@ Hybrid-Ansatz:
 PDF rein
   -> pro Seite als Bild rendern (PyMuPDF, konfigurierbares DPI)
   -> Tesseract liefert Wort-Bounding-Boxes (Position, aber mittelmaessige Texttreue)
-  -> Seitenbild + Tesseract-Text als Referenz an ein Vision-LLM (Claude)
+  -> Seitenbild + Tesseract-Text als Referenz an ein Vision-LLM (Claude oder OpenAI)
      -> LLM liefert korrigierten Fliesstext (Texttreue, aber ohne Positionen)
   -> Tesseract-Woerter und LLM-Text per Sequence-Alignment (difflib) verheiraten
   -> unsichtbaren Textlayer (PDF-Rendermodus "3 Tr") an Tesseract-Positionen
@@ -36,7 +36,11 @@ Geometrie.
 |---|---|
 | `pdf_render.py` | PDF-Seiten als Bilder rendern (PyMuPDF), Seitenmasse in PDF-Punkten |
 | `tesseract_ocr.py` | Wort-Bounding-Boxes per Tesseract (`pytesseract.image_to_data`) |
-| `llm_ocr.py` | Vision-LLM-Aufruf (Anthropic) mit Tesseract-Text als Referenz |
+| `prompt.py` | Baut den (provider-unabhaengigen) OCR-Prompt inkl. Tesseract-Referenztext |
+| `image_utils.py` | Bild-zu-Base64-PNG-Encoding, von beiden Providern genutzt |
+| `llm_ocr.py` | Vision-LLM-Aufruf gegen Claude (Anthropic Messages API) |
+| `llm_ocr_openai.py` | Vision-LLM-Aufruf gegen OpenAI (Chat Completions API) - identische Signatur wie `llm_ocr.py` |
+| `llm_provider.py` | Waehlt anhand `PDF_LLM_OCR_PROVIDER` zwischen beiden Providern, baut den passenden Client |
 | `align.py` | Sequence-Alignment: LLM-Text auf Tesseract-Boxen abbilden |
 | `overlay.py` | Unsichtbaren Textlayer bauen (reportlab) und mergen (pypdf); Fallback ohne Wort-Positionen, wenn Tesseract 0 Woerter fand |
 | `pipeline.py` | Orchestriert obige Schritte pro Dokument |
@@ -53,6 +57,30 @@ deklariert – nur so landen sie auch in einer regulaeren (nicht-editierbaren)
 Installation, wie sie das `Dockerfile` durchfuehrt. `static/index.html` ist
 eine eigenstaendige HTML/JS-Seite (kein Build-Schritt, keine externen
 Abhaengigkeiten) zum manuellen Ausprobieren des Endpoints.
+
+## LLM-Provider waehlen
+
+`PDF_LLM_OCR_PROVIDER` schaltet zwischen zwei austauschbaren Vision-LLM-
+Implementierungen um, ohne dass sich sonst etwas am Ablauf aendert (Tesseract-
+Positionen, Alignment, Textlayer-Bau sind provider-unabhaengig):
+
+| `PDF_LLM_OCR_PROVIDER` | Benoetigter Key | Modell-Env-Var | Default-Modell |
+|---|---|---|---|
+| `anthropic` (Default) | `ANTHROPIC_API_KEY` | `PDF_LLM_OCR_MODEL` | `claude-sonnet-5` |
+| `openai` | `OPENAI_API_KEY` | `PDF_LLM_OCR_OPENAI_MODEL` | `gpt-5.5` |
+
+Nur der Key des jeweils aktiven Providers wird gebraucht; `/ocr` liefert einen
+klaren 500er (`API-Key fuer Provider '...' ist nicht gesetzt`), falls er fehlt.
+Beide Implementierungen (`llm_ocr.py` fuer Claude, `llm_ocr_openai.py` fuer
+OpenAI) teilen sich Prompt-Aufbau (`prompt.py`) und Bild-Encoding
+(`image_utils.py`) – `llm_provider.py` waehlt anhand der Config nur noch den
+passenden Client und die passende `transcribe_page`-Funktion aus.
+
+**Das OpenAI-Default-Modell `gpt-5.5` ist nicht selbst getestet** (siehe
+"Bekannte Grenzen") – OpenAIs Modell-Namensschema aendert sich haeufig, dieser
+Wert kann bei dir bereits veraltet sein. Vor dem produktiven Einsatz gegen
+OpenAIs aktuelle Modellliste pruefen und `PDF_LLM_OCR_OPENAI_MODEL` bei Bedarf
+anpassen – keine Codeaenderung noetig.
 
 ## Betrieb per Docker (empfohlen)
 
@@ -128,6 +156,18 @@ Fallback-Textlayer (`tests/test_overlay.py`) – keine externen Abhaengigkeiten
   hergeleitete Zahl - bei Bedarf per Env-Var justierbar.
 - **Kein Zeilenumbruch-/Absatz-Handling**: Der Textlayer besteht aus
   einzelnen Woerter-Boxen, keine zusammenhaengenden Textbloecke.
+- **OpenAI-Pfad ist nicht end-to-end getestet** – kein OpenAI-API-Key in dieser
+  Entwicklungsumgebung verfuegbar. Verifiziert wurde: Provider-Auswahl per
+  `PDF_LLM_OCR_PROVIDER` (Unit-Tests in `tests/test_llm_provider.py`), der
+  Fehlerpfad bei fehlendem `OPENAI_API_KEY` (echter 500er gegen den laufenden
+  Container), und dass der Anthropic-Pfad nach dem Umbau auf die gemeinsame
+  Provider-Abstraktion weiterhin unveraendert funktioniert (Regressionstest
+  mit echtem OCR-Aufruf). Nicht verifiziert: ein tatsaechlicher
+  `/ocr`-Durchlauf mit `PDF_LLM_OCR_PROVIDER=openai` und echtem Key - das
+  exakte Request-Format (`image_url`-Content-Block, `max_completion_tokens`)
+  stammt aus der aktuellen OpenAI-API-Referenz, nicht aus einem eigenen Test.
+  Das Default-Modell `gpt-5.5` ebenfalls unverifiziert, siehe Abschnitt
+  "LLM-Provider waehlen".
 - **Kein Caching/Queueing**: Jede Anfrage laeuft synchron; fuer groessere
   PDFs oder hohen Durchsatz braucht es eine Job-Queue.
 - **Keine Auth**: Der Endpoint ist unauthentifiziert, fuer den produktiven
